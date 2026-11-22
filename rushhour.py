@@ -13,24 +13,6 @@ def calculo_posicion(fila, columna):
     posicion = fila * 6 + columna
     return posicion
 
-def vehiculoHorizontal (lista):
-    filas = []
-    for posicion in filas:
-        filas.append(calculo_casilla(posicion))
-    for i in range(1, len(lista)):
-        if lista[i] != lista [i] - 1:
-            return False
-        
-    return True
-
-def vehiculoVertical (lista):
-    for i in range(1, len(lista)):
-        if lista[i] != lista[i + 6]:
-            return False
-        
-    return True
-    
-
 # QUE: Comprueba si el nivel es valido y devuelve el codigo de error o 0 si es correcto
 # PORQUE: Accion verify de T1
 def verify(nivel):
@@ -130,7 +112,7 @@ def question_size(nivel, vehiculo):
     return cuenta
 
 # QUE: Calcula el numero de vehiculos en el nivel
-# PORQUE: Accón de question howmany de T1
+# PORQUE: Acción de question howmany de T1
 def question_howmany(nivel):
     vehiculos = set()
     for caracter in nivel:
@@ -140,8 +122,116 @@ def question_howmany(nivel):
     return len(vehiculos)
 
 
+# QUE: Calcula si el nivel es objetivo, es decir, si el coche rojo esta en la salida
+# PORQUE: Accón de question goal de T1
+def question_goal(nivel):
+    return question_what(nivel, (2, 5)) == "A"
 
 
+# QUE: Genera los sucesores de un nivel
+# PORQUE: Acción de sucesor goal T2
+def succesors(nivel):
+    # obtenemos los diferentes identificadores de vehiculos que exiten, quitamos los huecos ("o"), ordenamos alfabéticamente
+    vehiculos = sorted(set(nivel) - {"o"})
+
+    sucesores = []
+
+    for vehiculo in vehiculos:
+        posiciones = question_whereis(nivel, vehiculo)
+
+        # es un vehiculo horizontal?
+        if posiciones[0][0] == posiciones[1][0]:
+            
+            # nos quedamos con la posición más a la derecha del vehiculo
+            inicio = posiciones[2][1] if len(posiciones) == 3 else posiciones[1][1]
+
+            for desplazamiento, nueva_pos in enumerate(range(inicio+1, 6), 1):
+                if nivel[calculo_posicion(posiciones[0][0], nueva_pos)] == "o":
+                    nuevo_nivel_lista = list(nivel)
+                    for i in range(len(posiciones)):
+                        nuevo_nivel_lista[calculo_posicion(posiciones[0][0], posiciones[0][1]+i)] = "o"
+                        nuevo_nivel_lista[calculo_posicion(posiciones[0][0], nueva_pos-i       )] = vehiculo
+
+                    sucesores.append((f"{vehiculo}+{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
+                else:
+                    break
+
+
+            for desplazamiento, nueva_pos in enumerate(range(posiciones[0][1]-1, -1, -1), 1):
+                if nivel[calculo_posicion(posiciones[0][0], nueva_pos)] == "o":
+                    nuevo_nivel_lista = list(nivel)
+                    for i in range(len(posiciones)):
+                        nuevo_nivel_lista[calculo_posicion(posiciones[0][0], posiciones[0][1]+i)] = "o"
+                        nuevo_nivel_lista[calculo_posicion(posiciones[0][0], nueva_pos+i       )] = vehiculo
+
+                    sucesores.append((f"{vehiculo}-{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
+                else:
+                    break
+        else:
+            for desplazamiento, nueva_pos in enumerate(range(posiciones[0][0]-1, -1, -1), 1):
+                if nivel[calculo_posicion(nueva_pos, posiciones[0][1])] == "o":
+                    nuevo_nivel_lista = list(nivel)
+                    for i in range(len(posiciones)):
+                        nuevo_nivel_lista[calculo_posicion(posiciones[0][0]+i, posiciones[0][1])] = "o"
+                        nuevo_nivel_lista[calculo_posicion(nueva_pos+i,        posiciones[0][1])] = vehiculo
+
+                    sucesores.append((f"{vehiculo}+{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
+                else:
+                    break
+
+            inicio = posiciones[2][0] if len(posiciones) == 3 else posiciones[1][0]
+
+            for desplazamiento, nueva_pos in enumerate(range(inicio+1, 6), 1):
+                if nivel[calculo_posicion(nueva_pos, posiciones[0][1])] == "o":
+                    nuevo_nivel_lista = list(nivel)
+                    for i in range(len(posiciones)):
+                        nuevo_nivel_lista[calculo_posicion(posiciones[0][0]+i, posiciones[0][1])] = "o"
+                        nuevo_nivel_lista[calculo_posicion(nueva_pos-i,        posiciones[0][1])] = vehiculo
+
+                    sucesores.append((f"{vehiculo}-{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
+                else:
+                    break
+
+    return sucesores
+
+
+# QUE: Aplica los cambios consecutivamente de la lista de acciones al nivel
+# PORQUE: Question move T2
+def move(nivel, lista_acciones):
+    # Asume que la lista de acciones son válidas, es decir, que el coche no se sale, y que no pisa otros coches
+    nuevo_nivel_lista = list(nivel)
+
+    for accion in lista_acciones:
+        vehiculo = accion[0]
+        direccion = accion[1]
+        desplazamiento = int(accion[2])
+        
+        posiciones = question_whereis("".join(nuevo_nivel_lista), vehiculo)
+
+        if posiciones[0][0] == posiciones[1][0]:
+            if direccion == "+":
+                nueva_pos = posiciones[2][1] if len(posiciones) == 3 else posiciones[1][1] + desplazamiento
+                for i in range(len(posiciones)):
+                    nuevo_nivel_lista[calculo_posicion(posiciones[0][0], posiciones[0][1]+i)] = "o"
+                    nuevo_nivel_lista[calculo_posicion(posiciones[0][0], nueva_pos-i       )] = vehiculo
+            else:
+                nueva_pos = posiciones[0][1] - desplazamiento
+                for i in range(len(posiciones)):
+                    nuevo_nivel_lista[calculo_posicion(posiciones[0][0], posiciones[0][1]+i)] = "o"
+                    nuevo_nivel_lista[calculo_posicion(posiciones[0][0], nueva_pos+i       )] = vehiculo
+        else:
+            if direccion == "+":
+                nueva_pos = posiciones[0][0] - desplazamiento
+                for i in range(len(posiciones)):
+                    nuevo_nivel_lista[calculo_posicion(posiciones[0][0]+i, posiciones[0][1])] = "o"
+                    nuevo_nivel_lista[calculo_posicion(nueva_pos+i,        posiciones[0][1])] = vehiculo
+            else:
+                nueva_pos = posiciones[2][0] if len(posiciones) == 3 else posiciones[1][0] + desplazamiento
+                for i in range(len(posiciones)):
+                    nuevo_nivel_lista[calculo_posicion(posiciones[0][0]+i, posiciones[0][1])] = "o"
+                    nuevo_nivel_lista[calculo_posicion(nueva_pos-i,        posiciones[0][1])] = vehiculo
+
+    return "".join(nuevo_nivel_lista)
 
 accion = sys.argv[1]
 nivel = sys.argv[3]
@@ -164,12 +254,28 @@ if accion == "question":
         for posicion in posiciones:
             print(f"({posicion[0]},{posicion[1]})", end = "")
         print()
+    elif pregunta == "--goal":
+        finalizado = question_goal(nivel)
+        print("TRUE" if finalizado else "FALSE")
+    elif pregunta == "--move":
+        lista_acciones_str = sys.argv[5]
+        lista_acciones = []
+        for accion_str in lista_acciones_str.split(","):
+            lista_acciones.append(accion_str)
+        print(move(nivel, lista_acciones))
     else:
         print("Pregunta desconocida")
         
 elif accion == "verify":
     print(verify(nivel))
-else : 
+
+elif accion == "successors":
+    sucesores = succesors(nivel)
+
+    for sucesor in sucesores:
+        print(f"[{sucesor[0]},{sucesor[1]},{sucesor[2]}]")
+
+else: 
     print("Acción desconocida")
 
 
