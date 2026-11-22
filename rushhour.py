@@ -1,4 +1,6 @@
 import sys
+from bisect import insort
+from timeit import timeit
 
 # QUE: Funcion que recibe la posicion de la cadena(0-35) y calcula la fila y la columna
 # PORQUE: El nivel llega como una cadena y hay que traducirlo a filas y columnas 
@@ -150,6 +152,7 @@ def succesors(nivel):
                     nuevo_nivel_lista = list(nivel)
                     for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(posiciones[0][0], posiciones[0][1]+i)] = "o"
+                    for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(posiciones[0][0], nueva_pos-i       )] = vehiculo
 
                     sucesores.append((f"{vehiculo}+{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
@@ -162,6 +165,7 @@ def succesors(nivel):
                     nuevo_nivel_lista = list(nivel)
                     for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(posiciones[0][0], posiciones[0][1]+i)] = "o"
+                    for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(posiciones[0][0], nueva_pos+i       )] = vehiculo
 
                     sucesores.append((f"{vehiculo}-{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
@@ -173,6 +177,7 @@ def succesors(nivel):
                     nuevo_nivel_lista = list(nivel)
                     for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(posiciones[0][0]+i, posiciones[0][1])] = "o"
+                    for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(nueva_pos+i,        posiciones[0][1])] = vehiculo
 
                     sucesores.append((f"{vehiculo}+{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
@@ -186,6 +191,7 @@ def succesors(nivel):
                     nuevo_nivel_lista = list(nivel)
                     for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(posiciones[0][0]+i, posiciones[0][1])] = "o"
+                    for i in range(len(posiciones)):
                         nuevo_nivel_lista[calculo_posicion(nueva_pos-i,        posiciones[0][1])] = vehiculo
 
                     sucesores.append((f"{vehiculo}-{desplazamiento}", "".join(nuevo_nivel_lista), 6-desplazamiento))
@@ -233,6 +239,76 @@ def move(nivel, lista_acciones):
 
     return "".join(nuevo_nivel_lista)
 
+
+# QUE: Funcion recursiva que devuelve lista de nodos ordenados de raíz a solucion
+# PORQUE: funcion camino T3
+def construir_camino(nodo):
+    if nodo is None:
+        return []
+    else:
+        camino = construir_camino(nodo[1])
+        camino.append(nodo)
+        return camino
+
+
+# QUE: ejecuta el algoritmo de búsqueda
+# PORQUE: algoritmo busqueda t3
+def algoritmo_busqueda(estado_inicial, estrategia_str, profundidad_max):
+    # nodo_inicial: ( 0,  None,  "___", estado_inicial,     0,           0,          0,     0)
+    # nodo:         (id, padre, accion,         estado, coste, profundidad, heuristica, valor)
+    #                 0      1       2               3      4            5           6      7
+   
+    frontera = []
+    nodo_inicial = (0, None, "___", estado_inicial, 0, 0, 0, 0)
+    insort(frontera, nodo_inicial, key=lambda nodo: (nodo[7], nodo[0]))
+    visitados = {}
+    solucion = False
+    visitados[estado_inicial] = nodo_inicial[7]
+
+    tn = 1 # nodos generados
+    cn = 0 # nodos podados
+    en = 0 # nodos expandidos
+    df = 0 # profundidad máxima
+    tiempo_inicio = timeit() # para el tiempo
+
+    while not solucion and len(frontera) != 0:
+        nodo = frontera.pop(0)
+        if question_goal(nodo[3]):
+            solucion = True
+        else:
+            if nodo[5] >= profundidad_max or (nodo[3] in visitados and visitados[nodo[3]] < abs(nodo[7])):
+                cn += 1
+            else:
+                visitados[nodo[3]] = abs(nodo[7])
+                sucesores = succesors(nodo[3])
+                for sucesor in sucesores:
+                    nuevo_nodo = (tn, nodo, sucesor[0], sucesor[1], sucesor[2], nodo[5]+1, 0, 0)
+                    nuevo_nodo = (tn, nodo, sucesor[0], sucesor[1], sucesor[2], nodo[5]+1, 0, selector_estrategia(estrategia_str, nuevo_nodo))
+                    insort(frontera, nuevo_nodo, key=lambda nodol: (nodol[7], nodol[0]))
+                    tn += 1
+                if nodo[5] > df:
+                    df = nodo[5]
+                en += 1
+
+    et = timeit() - tiempo_inicio # tiempo ejecucion
+
+    camino = []
+    if solucion:
+        camino = construir_camino(nodo)
+
+    return camino, et, tn, cn, en, df
+
+
+# QUE: Devuelve el valor de la estrategia dado el nombre de esta
+# PORQUE: Usar el parámetro de strategy de T3
+def selector_estrategia(estrategia_str, nodo):
+    if estrategia_str == "DFS":
+        return -nodo[5]
+    elif estrategia_str == "BFS":
+        return nodo[5]
+    elif estrategia_str == "UCS":
+        return nodo[4]
+
 accion = sys.argv[1]
 nivel = sys.argv[3]
 
@@ -275,10 +351,29 @@ elif accion == "successors":
     for sucesor in sucesores:
         print(f"[{sucesor[0]},{sucesor[1]},{sucesor[2]}]")
 
+elif accion == "solver":
+    estrategia_str = sys.argv[5]
+    profundidad_max = int(sys.argv[7])
+
+    camino, et, tn, cn, en, df = algoritmo_busqueda(nivel, estrategia_str, profundidad_max)
+
+    for nodo in camino:
+        print(f"[{nodo[0]},{nodo[1][0] if nodo[1] is not None else None},{nodo[2]},{nodo[3]},{nodo[4]},{nodo[5]},{nodo[6]},{nodo[7]}]")
+
+    if len(sys.argv) > 8 and sys.argv[8] == "--stats":
+        print()
+        print("ET:", et)
+        print("TN:", tn)
+        print("EN:", en)
+        print("CN:", cn)
+        print("DF:", df)
+
 else: 
     print("Acción desconocida")
 
 
 
-
+# coger en selector estrategia añadir A* y voraz de tal manera qeu la primera devuelva la suma de el coste + esuristica y voraz solo heuristica
+# para calcular euristica, hay que crear una funion que a partir de un numero (0, 1, 2) nos de un valor para esa heuristica.
+# 0 numero de casillas a la derecha del coche rojo; 1 numero de coches a la derecha del coche rojo; 2 suma de heuristica 0 + 1 
 
